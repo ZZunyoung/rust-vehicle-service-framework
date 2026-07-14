@@ -4,8 +4,6 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::Path;
 
-pub const DEFAULT_SOCKET_PATH: &str = "/tmp/vehicle-framework.sock";
-
 pub fn encode_message(message: &Message) -> Result<String, serde_json::Error> {
     serde_json::to_string(message)
 }

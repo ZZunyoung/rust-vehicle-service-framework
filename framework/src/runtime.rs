@@ -1,7 +1,7 @@
 use crate::event::Event;
 use crate::event_bus::EventBus;
 use crate::message::Message;
-use crate::registry::ServiceRegistry;
+use crate::registry::{RegisterResult, ServiceRegistry};
 use std::time::Duration;
 
 pub struct Runtime {
@@ -15,8 +15,13 @@ impl Runtime {
         }
     }
 
-    pub fn register_service(&mut self, name: &str, subscriptions: Vec<Event>, socket_path: &str) {
-        self.registry.register(name, subscriptions, socket_path);
+    pub fn register_service(
+        &mut self,
+        name: &str,
+        subscriptions: Vec<Event>,
+        socket_path: &str,
+    ) -> RegisterResult {
+        self.registry.register(name, subscriptions, socket_path)
     }
 
     pub fn publish(&self, event: Event) {
@@ -32,8 +37,14 @@ impl Runtime {
                 subscriptions,
                 socket_path,
             } => {
-                self.register_service(&service_name, subscriptions, &socket_path);
-                println!("Runtime registered service: {}", service_name);
+                let result = self.register_service(&service_name, subscriptions, &socket_path);
+
+                match result {
+                    RegisterResult::New => println!("Runtime registered new service: {}", service_name),
+                    RegisterResult::Updated => println!("Runtime updated service: {}", service_name),
+                    RegisterResult::Recovered => println!("Runtime recovered service: {}", service_name),
+                }
+
                 self.print_services();
             }
             Message::Publish {
@@ -58,7 +69,7 @@ impl Runtime {
                 self.mark_heartbeat(&service_name);
             }
             Message::Shutdown { service_name } => {
-                println!("Runtime received shutdown from {}", service_name);
+                self.unregister_service(&service_name);
             }
         }
     }
@@ -79,10 +90,11 @@ impl Runtime {
                 .join(", ");
 
             println!(
-                "- {} [{}] at {}",
+                "- {} [{}] at {} ({:?})",
                 service.name,
                 subscriptions,
-                service.socket_path
+                service.socket_path,
+                service.status
             );
         }
     }
@@ -100,7 +112,24 @@ impl Runtime {
 
         for service in down_services {
             println!("Runtime detected service down: {}", service.name);
-            self.publish(Event::ServiceDown);
+
+            self.publish(Event::ServiceDown {
+                service_name: service.name,
+            });
+
+            self.print_services();
+        }
+    }
+
+    pub fn unregister_service(&mut self, name: &str) {
+        match self.registry.unregister(name) {
+            Some(_) => {
+                println!("Runtime unregistered service: {}", name);
+                self.print_services();
+            }
+            None => {
+                println!("Runtime received shutdown from unknown service: {}", name);
+            }
         }
     }
 }
