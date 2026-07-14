@@ -1,9 +1,5 @@
 # Rust Vehicle Service Framework
 
-Linux 환경에서 여러 독립 프로세스가 이벤트 기반으로 통신하는 Rust 시스템 프레임워크 실험 프로젝트입니다.
-
-이 프로젝트의 목표는 자동차 도메인 서비스를 깊게 구현하는 것이 아니라, 차량용 시스템 프레임워크에서 요구되는 Runtime, IPC, Event Bus, Service Registry, Heartbeat, Health Monitor 같은 기반 구조를 직접 설계하고 구현하는 것입니다.
-
 ## 현재 구현 상태
 
 - Cargo workspace 구성
@@ -20,8 +16,6 @@ Linux 환경에서 여러 독립 프로세스가 이벤트 기반으로 통신�
   - `door`
   - `display`
   - `logger`
-
-현재 동작하는 핵심 흐름은 다음과 같습니다.
 
 ```text
 door
@@ -73,8 +67,6 @@ door
 - `Heartbeat`
 - `Shutdown`
 
-`ServiceDown`은 payload를 포함하므로 어떤 서비스가 죽었는지 logger가 기록할 수 있습니다.
-
 ### `framework::message`
 
 IPC로 전달되는 메시지 타입입니다.
@@ -88,8 +80,6 @@ IPC로 전달되는 메시지 타입입니다.
 ### `framework::ipc`
 
 Unix Domain Socket 기반 메시지 송수신을 담당합니다.
-
-메시지는 `serde_json`으로 직렬화되고, 한 줄 단위로 전송됩니다.
 
 ```text
 Runtime socket:
@@ -131,11 +121,7 @@ Runtime의 핵심 로직입니다.
 
 주기 작업 실행을 담당합니다.
 
-현재는 `health-check` job이 Runtime에서 주기적으로 실행됩니다.
-
 ### `framework::service_api`
-
-서비스가 Runtime 내부 구조를 직접 알지 않고 사용할 수 있는 API입니다.
 
 현재 제공 API:
 
@@ -144,42 +130,6 @@ Runtime의 핵심 로직입니다.
 - `heartbeat()`
 - `shutdown()`
 - `service_socket_path()`
-
-## 실행 방법
-
-먼저 전체 빌드를 확인합니다.
-
-```bash
-cargo check --workspace
-```
-
-터미널을 여러 개 열고 아래 순서대로 실행합니다.
-
-터미널 1: Runtime 실행
-
-```bash
-cargo run -p launcher
-```
-
-터미널 2: Display 서비스 실행
-
-```bash
-cargo run -p display
-```
-
-터미널 3: Logger 서비스 실행
-
-```bash
-cargo run -p logger
-```
-
-터미널 4: Door 이벤트 발행
-
-```bash
-cargo run -p door
-```
-
-정상 동작하면 Runtime 쪽에서 `DoorOpened` 이벤트가 `display`, `logger`로 dispatch되고, 각 서비스 터미널에서 이벤트 수신 로그가 출력됩니다.
 
 ## 동작 시나리오
 
@@ -195,8 +145,6 @@ door
 
 ### Heartbeat
 
-`display`와 `logger`는 주기적으로 Runtime에 heartbeat를 보냅니다.
-
 ```text
 display/logger
   -> Heartbeat
@@ -205,8 +153,6 @@ display/logger
 ```
 
 ### Crash Detection
-
-`display` 또는 `logger`를 `Ctrl+C`로 종료하면 Runtime은 heartbeat timeout 이후 해당 서비스를 `Down`으로 표시합니다.
 
 ```text
 service crash
@@ -218,55 +164,8 @@ service crash
 
 ### Graceful Shutdown
 
-`display` 또는 `logger` 터미널에서 Enter를 누르면 서비스가 Runtime에 `Shutdown` 메시지를 보내고 정상 unregister됩니다.
-
 ```text
 Enter
   -> Shutdown
   -> Runtime unregister
 ```
-
-## 현재 한계
-
-- Runtime이 서비스 프로세스를 직접 spawn/restart하지는 않습니다.
-- 자동 재시작 정책은 아직 없습니다.
-- 로그는 `println!`/`eprintln!` 기반입니다.
-- 단위 테스트가 아직 없습니다.
-- 서비스별 socket listener 시작 순서에 아주 짧은 race condition 가능성이 있습니다.
-- `logger`의 heartbeat interval은 아직 config 함수로 완전히 정리되지 않았을 수 있습니다.
-
-## 다음 작업 후보
-
-우선순위가 높은 다음 작업:
-
-1. `logger`의 heartbeat interval을 `framework::config::heartbeat_interval()`로 통일
-2. `cargo fmt` 적용
-3. 단위 테스트 추가
-   - `Event::same_kind`
-   - `ServiceRegistry::register`
-   - `ServiceRegistry::subscribers_for`
-   - heartbeat timeout
-   - unregister
-4. Logging 모듈 추가
-5. Launcher가 서비스 프로세스를 직접 실행하도록 확장
-6. Retry/Restart 정책 구현
-7. Docker Compose 실행 환경 추가
-8. Benchmark 모드 추가
-
-## 프로젝트 방향
-
-이 프로젝트의 중심은 예제 서비스가 아니라 Framework Runtime입니다.
-
-서비스는 가능한 단순하게 유지하고, 아래 기능을 프레임워크 쪽에 축적하는 방향으로 개발합니다.
-
-- IPC abstraction
-- Event routing
-- Service discovery
-- Heartbeat
-- Health monitor
-- Crash detection
-- Graceful shutdown
-- Retry/restart policy
-- Scheduler
-- Logging
-- Benchmark
