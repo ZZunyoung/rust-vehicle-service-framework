@@ -2,6 +2,7 @@ use crate::event::Event;
 use crate::event_bus::EventBus;
 use crate::message::Message;
 use crate::registry::ServiceRegistry;
+use std::time::Duration;
 
 pub struct Runtime {
     registry: ServiceRegistry,
@@ -54,7 +55,7 @@ impl Runtime {
                 );
             }
             Message::Heartbeat { service_name } => {
-                println!("Runtime received heartbeat from {}", service_name);
+                self.mark_heartbeat(&service_name);
             }
             Message::Shutdown { service_name } => {
                 println!("Runtime received shutdown from {}", service_name);
@@ -83,6 +84,23 @@ impl Runtime {
                 subscriptions,
                 service.socket_path
             );
+        }
+    }
+
+    pub fn mark_heartbeat(&mut self, name: &str) {
+        if self.registry.mark_heartbeat(name) {
+            println!("Runtime heartbeat updated: {}", name);
+        } else {
+            println!("Runtime received heartbeat from unknown service: {}", name);
+        }
+    }
+
+    pub fn check_health(&mut self, timeout: Duration) {
+        let down_services = self.registry.mark_timed_out_services_down(timeout);
+
+        for service in down_services {
+            println!("Runtime detected service down: {}", service.name);
+            self.publish(Event::ServiceDown);
         }
     }
 }

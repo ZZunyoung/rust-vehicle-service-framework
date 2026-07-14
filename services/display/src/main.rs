@@ -2,6 +2,8 @@ use framework::event::Event;
 use framework::ipc::receive_loop;
 use framework::message::Message;
 use framework::service_api::ServiceContext;
+use std::thread;
+use std::time::Duration;
 
 fn main() {
     let context = ServiceContext::new("display");
@@ -15,6 +17,16 @@ fn main() {
             return;
         }
     }
+
+    let heartbeat_context = context.clone();
+
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(5));
+
+        if let Err(error) = heartbeat_context.heartbeat() {
+            eprintln!("display failed to send heartbeat: {error}");
+        }
+    });
 
     receive_loop(context.service_socket_path(), |message| match message {
         Message::Dispatch { event } => match event {
