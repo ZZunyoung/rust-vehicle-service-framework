@@ -8,3 +8,7 @@ members = [
     "services/display",
     "services/logger",
 ]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
