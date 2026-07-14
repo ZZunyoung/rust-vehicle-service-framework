@@ -3,6 +3,7 @@ use crate::ipc::{send_message, DEFAULT_SOCKET_PATH};
 use crate::message::Message;
 use std::io;
 
+#[derive(Clone)]
 pub struct ServiceContext {
     service_name: String,
     runtime_socket_path: String,
@@ -43,5 +44,13 @@ impl ServiceContext {
 
     pub fn service_socket_path(&self) -> &str {
         &self.service_socket_path
+    }
+
+    pub fn heartbeat(&self) -> io::Result<()> {
+        let message = Message::Heartbeat {
+            service_name: self.service_name.clone(),
+        };
+
+        send_message(&self.runtime_socket_path, &message)
     }
 }
