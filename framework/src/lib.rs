@@ -5,3 +5,5 @@ pub mod message;
 pub mod registry;
 pub mod runtime;
 pub mod service_api;
+pub mod scheduler;
+pub mod config;

@@ -22,6 +22,13 @@ pub enum ServiceStatus {
     Down,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RegisterResult {
+    New,
+    Updated,
+    Recovered,
+}
+
 impl ServiceRegistry {
     pub fn new() -> Self {
         Self {
@@ -29,12 +36,25 @@ impl ServiceRegistry {
         }
     }
 
-    pub fn register(&mut self, name: &str, subscriptions: Vec<Event>, socket_path: &str) {
+    pub fn register(
+        &mut self,
+        name: &str,
+        subscriptions: Vec<Event>,
+        socket_path: &str,
+    ) -> RegisterResult {
         if let Some(service) = self.services.iter_mut().find(|service| service.name == name) {
+            let was_down = service.status == ServiceStatus::Down;
+
             service.subscriptions = subscriptions;
             service.socket_path = socket_path.to_string();
             service.last_heartbeat = Instant::now();
-            return;
+            service.status = ServiceStatus::Alive;
+
+            return if was_down {
+                RegisterResult::Recovered
+            } else {
+                RegisterResult::Updated
+            };
         }
 
         let service = ServiceInfo {
@@ -46,12 +66,20 @@ impl ServiceRegistry {
         };
 
         self.services.push(service);
+
+        RegisterResult::New
     }
 
     pub fn subscribers_for(&self, event: &Event) -> Vec<ServiceInfo> {
         self.services
             .iter()
-            .filter(|service| service.subscriptions.contains(event))
+            .filter(|service| {
+                service.status == ServiceStatus::Alive
+                    && service
+                        .subscriptions
+                        .iter()
+                        .any(|subscription| subscription.same_kind(event))
+            })
             .cloned()
             .collect()
     }
@@ -85,5 +113,11 @@ impl ServiceRegistry {
         }
 
         timed_out
+    }
+
+    pub fn unregister(&mut self, name: &str) -> Option<ServiceInfo> {
+        let index = self.services.iter().position(|service| service.name == name)?;
+
+        Some(self.services.remove(index))
     }
 }

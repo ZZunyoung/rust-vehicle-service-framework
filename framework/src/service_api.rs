@@ -1,5 +1,6 @@
 use crate::event::Event;
-use crate::ipc::{send_message, DEFAULT_SOCKET_PATH};
+use crate::config::{service_socket_path, DEFAULT_RUNTIME_SOCKET_PATH};
+use crate::ipc::send_message;
 use crate::message::Message;
 use std::io;
 
@@ -14,8 +15,8 @@ impl ServiceContext {
     pub fn new(service_name: &str) -> Self {
         Self {
             service_name: service_name.to_string(),
-            runtime_socket_path: DEFAULT_SOCKET_PATH.to_string(),
-            service_socket_path: format!("/tmp/vehicle-framework-{service_name}.sock"),
+            runtime_socket_path: DEFAULT_RUNTIME_SOCKET_PATH.to_string(),
+            service_socket_path: service_socket_path(service_name),
         }
     }
 
@@ -48,6 +49,14 @@ impl ServiceContext {
 
     pub fn heartbeat(&self) -> io::Result<()> {
         let message = Message::Heartbeat {
+            service_name: self.service_name.clone(),
+        };
+
+        send_message(&self.runtime_socket_path, &message)
+    }
+
+    pub fn shutdown(&self) -> io::Result<()> {
+        let message = Message::Shutdown {
             service_name: self.service_name.clone(),
         };
 

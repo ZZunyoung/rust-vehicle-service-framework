@@ -2,6 +2,7 @@ use framework::event::Event;
 use framework::ipc::receive_loop;
 use framework::message::Message;
 use framework::service_api::ServiceContext;
+use std::io;
 use std::thread;
 use std::time::Duration;
 
@@ -10,8 +11,13 @@ fn main() {
 
     println!("logger listening on {}", context.service_socket_path());
 
-    match context.register(vec![Event::DoorOpened]) {
-        Ok(()) => println!("logger registered for DoorOpened"),
+    match context.register(vec![
+        Event::DoorOpened,
+        Event::ServiceDown {
+            service_name: "*".to_string(),
+        },
+    ]) {
+        Ok(()) => println!("logger registered for DoorOpened, ServiceDown"),
         Err(error) => {
             eprintln!("logger failed to register: {error}");
             return;
@@ -28,13 +34,38 @@ fn main() {
         }
     });
 
-    receive_loop(context.service_socket_path(), |message| match message {
-        Message::Dispatch { event } => {
-            println!("logger recorded event: {}", event.name());
-        }
-        other => {
-            println!("logger ignored message from {}", other.sender());
-        }
+    let service_socket_path = context.service_socket_path().to_string();
+
+    thread::spawn(move || {
+        receive_loop(&service_socket_path, |message| match message {
+            Message::Dispatch { event } => match event {
+                Event::DoorOpened => {
+                    println!("logger recorded event: DoorOpened");
+                }
+                Event::ServiceDown { service_name } => {
+                    println!("logger recorded event: ServiceDown({service_name})");
+                }
+                other => {
+                    println!("logger ignored event: {}", other.name());
+                }
+            },
+            other => {
+                println!("logger ignored message from {}", other.sender());
+            }
+        })
+        .expect("logger failed to receive messages");
     })
-    .expect("logger failed to receive messages");
+    ;
+
+    println!("logger running. Press Enter to shutdown.");
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .expect("failed to read shutdown input");
+
+    match context.shutdown() {
+        Ok(()) => println!("logger shutdown requested"),
+        Err(error) => eprintln!("logger failed to send shutdown: {error}"),
+    }
 }
