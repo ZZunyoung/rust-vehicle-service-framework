@@ -121,3 +121,102 @@ impl ServiceRegistry {
         Some(self.services.remove(index))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn register_returns_new_then_updated() {
+        let mut registry = ServiceRegistry::new();
+
+        let result1 = registry.register(
+            "door",
+            vec![Event::DoorOpened],
+            "/tmp/door.sock",
+        );
+        assert_eq!(result1, RegisterResult::New);
+
+        let result2 = registry.register(
+            "door",
+            vec![Event::DoorOpened, Event::EngineStarted],
+            "/tmp/door.sock",
+        );
+        assert_eq!(result2, RegisterResult::Updated);
+    }
+
+    #[test]
+    fn register_returns_recovered_after_down() {
+        let mut registry = ServiceRegistry::new();
+
+        let _result1 = registry.register(
+            "door",
+            vec![Event::DoorOpened],
+            "/tmp/door.sock",
+        );
+
+        // Mark the service as down
+        registry.mark_timed_out_services_down(Duration::from_secs(0));
+
+        let result2 = registry.register(
+            "door",
+            vec![Event::DoorOpened, Event::EngineStarted],
+            "/tmp/door.sock",
+        );
+        assert_eq!(result2, RegisterResult::Recovered);
+    }
+
+    #[test]
+    fn subscribers_for_returns_correct_services() {
+        let mut registry = ServiceRegistry::new();
+
+        registry.register(
+            "display",
+            vec![Event::DoorOpened],
+            "/tmp/display.sock",
+        );
+
+        registry.register(
+            "door",
+            vec![],
+            "/tmp/door.sock",
+        );
+
+        let sub = registry.subscribers_for(&Event::DoorOpened);
+        assert_eq!(sub.len(), 1);
+        assert_eq!(sub[0].name, "display");
+    }
+
+    #[test]
+    fn subscribers_for_returns_empty_for_down_services(){
+        let mut registry = ServiceRegistry::new();
+
+        registry.register(
+            "display",
+            vec![Event::DoorOpened],
+            "/tmp/display.sock",
+        );
+
+        registry.mark_timed_out_services_down(Duration::from_secs(0));
+
+        let sub = registry.subscribers_for(&Event::DoorOpened);
+        assert_eq!(sub.len(), 0);
+    }
+
+    #[test]
+    fn mark_timed_out_services_down_marks_correct_services_as_down() {
+        let mut registry = ServiceRegistry::new();
+
+        registry.register(
+            "display",
+            vec![Event::DoorOpened],
+            "/tmp/display.sock",
+        );
+
+        let timed_out = registry.mark_timed_out_services_down(Duration::from_secs(0));
+        assert_eq!(timed_out.len(), 1);
+
+        let timed_out = registry.mark_timed_out_services_down(Duration::from_secs(0));
+        assert_eq!(timed_out.len(), 0);
+    }
+}

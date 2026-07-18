@@ -57,3 +57,22 @@ where
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::event::Event;
+
+    #[test]
+    fn encode_then_decode_returns_same_message() {
+        let message = Message::Publish {
+            service_name: "door".to_string(),
+            event: Event::DoorOpened,
+        };
+
+        let encoded = encode_message(&message).expect("Failed to encode message");
+        let decoded = decode_message(&encoded).expect("Failed to decode message");
+
+        assert_eq!(message, decoded);
+    }
+}
