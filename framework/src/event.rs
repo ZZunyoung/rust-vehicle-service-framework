@@ -39,3 +39,24 @@ impl Event {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn name_returns_correct_string() {
+        assert_eq!(Event::DoorOpened.name(), "DoorOpened");
+        assert_eq!(Event::FuelLow.name(), "FuelLow");
+    }
+    #[test]
+    fn same_kind_returns_true_for_same_event() {
+        let event1 = Event::DoorOpened;
+        let event2 = Event::DoorOpened;
+        let event3 = Event::ServiceDown { service_name: "a".to_string() };
+
+        assert!(event1.same_kind(&event2));
+        assert!(event3.same_kind(&Event::ServiceDown { service_name: "b".to_string() }));
+        assert!(!event1.same_kind(&event3));
+    }
+}
