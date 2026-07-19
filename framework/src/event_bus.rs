@@ -1,23 +1,21 @@
 use crate::event::Event;
 use crate::ipc::send_message;
 use crate::message::Message;
-use crate::registry::ServiceRegistry;
+use crate::registry::ServiceInfo;
 
 pub struct EventBus {
-    registry: ServiceRegistry,
+    subscribers: Vec<ServiceInfo>,
 }
 
 impl EventBus {
-    pub fn new(registry: ServiceRegistry) -> Self {
-        Self { registry }
+    pub fn new(subscribers: Vec<ServiceInfo>) -> Self {
+        Self { subscribers }
     }
 
     pub fn publish(&self, event: Event) {
         println!("EventBus received event: {}", event.name());
 
-        let subscribers = self.registry.subscribers_for(&event);
-
-        for subscriber in subscribers {
+        for subscriber in &self.subscribers {
             let message = Message::Dispatch {
                 event: event.clone(),
             };
