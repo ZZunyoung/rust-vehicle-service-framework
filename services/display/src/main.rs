@@ -1,9 +1,8 @@
 use framework::event::Event;
-use framework::ipc::receive_loop;
 use framework::message::Message;
 use framework::service_api::ServiceContext;
 use std::thread;
-use framework::config::heartbeat_interval;
+use framework::config::{heartbeat_interval, new_transport};
 use std::io;
 
 fn main() {
@@ -32,7 +31,7 @@ fn main() {
     let service_socket_path = context.service_socket_path().to_string();
 
     thread::spawn(move || {
-        receive_loop(&service_socket_path, |message| match message {
+        new_transport().serve(&service_socket_path, Box::new(|message| match message {
             Message::Dispatch { event } => match event {
                 Event::DoorOpened => {
                     println!("display received DoorOpened -> display on");
@@ -44,7 +43,7 @@ fn main() {
             other => {
                 println!("display ignored message from {}", other.sender());
             }
-        })
+        }))
         .expect("display failed to receive messages");
     });
 

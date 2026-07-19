@@ -1,5 +1,5 @@
 use framework::event::Event;
-use framework::ipc::receive_loop;
+use framework::config::new_transport;
 use framework::message::Message;
 use framework::service_api::ServiceContext;
 use std::io;
@@ -37,7 +37,7 @@ fn main() {
     let service_socket_path = context.service_socket_path().to_string();
 
     thread::spawn(move || {
-        receive_loop(&service_socket_path, |message| match message {
+        new_transport().serve(&service_socket_path, Box::new(|message| match message {
             Message::Dispatch { event } => match event {
                 Event::DoorOpened => {
                     println!("logger recorded event: DoorOpened");
@@ -52,7 +52,7 @@ fn main() {
             other => {
                 println!("logger ignored message from {}", other.sender());
             }
-        })
+        }))
         .expect("logger failed to receive messages");
     })
     ;
