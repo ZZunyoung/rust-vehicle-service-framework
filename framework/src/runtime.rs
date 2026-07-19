@@ -3,34 +3,35 @@ use crate::event_bus::EventBus;
 use crate::message::Message;
 use crate::registry::{RegisterResult, ServiceRegistry};
 use std::time::Duration;
+use std::sync::{Arc, RwLock};
 
 pub struct Runtime {
-    registry: ServiceRegistry,
+    registry: Arc<RwLock<ServiceRegistry>>,
 }
 
 impl Runtime {
     pub fn new() -> Self {
         Self {
-            registry: ServiceRegistry::new(),
+            registry: Arc::new(RwLock::new(ServiceRegistry::new())),
         }
     }
 
     pub fn register_service(
-        &mut self,
+        &self,
         name: &str,
         subscriptions: Vec<Event>,
         socket_path: &str,
     ) -> RegisterResult {
-        self.registry.register(name, subscriptions, socket_path)
+        self.registry.write().unwrap().register(name, subscriptions, socket_path)
     }
 
     pub fn publish(&self, event: Event) {
-        let event_bus = EventBus::new(self.registry.clone());
-
+        let subscribers = self.registry.read().unwrap().subscribers_for(&event);
+        let event_bus = EventBus::new(subscribers);
         event_bus.publish(event);
     }
 
-    pub fn handle_message(&mut self, message: Message) {
+    pub fn handle_message(&self, message: Message) {
         match message {
             Message::Register {
                 service_name,
@@ -75,13 +76,15 @@ impl Runtime {
     }
 
     pub fn service_count(&self) -> usize {
-        self.registry.service_count()
+        self.registry.read().unwrap().service_count()
     }
 
     pub fn print_services(&self) {
         println!("Registered services:");
 
-        for service in self.registry.services() {
+        let services = self.registry.read().unwrap().services().to_vec();
+        
+        for service in services {
             let subscriptions = service
                 .subscriptions
                 .iter()
@@ -99,16 +102,16 @@ impl Runtime {
         }
     }
 
-    pub fn mark_heartbeat(&mut self, name: &str) {
-        if self.registry.mark_heartbeat(name) {
+    pub fn mark_heartbeat(&self, name: &str) {
+        if self.registry.write().unwrap().mark_heartbeat(name) {
             println!("Runtime heartbeat updated: {}", name);
         } else {
             println!("Runtime received heartbeat from unknown service: {}", name);
         }
     }
 
-    pub fn check_health(&mut self, timeout: Duration) {
-        let down_services = self.registry.mark_timed_out_services_down(timeout);
+    pub fn check_health(&self, timeout: Duration) {
+        let down_services = self.registry.write().unwrap().mark_timed_out_services_down(timeout);
 
         for service in down_services {
             println!("Runtime detected service down: {}", service.name);
@@ -121,8 +124,8 @@ impl Runtime {
         }
     }
 
-    pub fn unregister_service(&mut self, name: &str) {
-        match self.registry.unregister(name) {
+    pub fn unregister_service(&self, name: &str) {
+        match self.registry.write().unwrap().unregister(name) {
             Some(_) => {
                 println!("Runtime unregistered service: {}", name);
                 self.print_services();
