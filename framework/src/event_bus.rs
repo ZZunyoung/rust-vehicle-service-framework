@@ -1,5 +1,5 @@
 use crate::event::Event;
-use crate::ipc::send_message;
+use crate::config::new_transport;
 use crate::message::Message;
 use crate::registry::ServiceInfo;
 
@@ -20,7 +20,7 @@ impl EventBus {
                 event: event.clone(),
             };
 
-            match send_message(&subscriber.socket_path, &message) {
+            match new_transport().send(&subscriber.socket_path, &message) {
                 Ok(()) => {
                     println!(
                         "EventBus dispatch: {} -> {}",

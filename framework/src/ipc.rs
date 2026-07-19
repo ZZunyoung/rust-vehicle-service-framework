@@ -1,6 +1,6 @@
 use crate::message::Message;
 use std::fs;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::Path;
 
@@ -12,14 +12,18 @@ pub fn decode_message(raw: &str) -> Result<Message, serde_json::Error> {
     serde_json::from_str(raw)
 }
 
-pub fn send_message(socket_path: &str, message: &Message) -> io::Result<()> {
-    let mut stream = UnixStream::connect(socket_path)?;
+pub fn write_message<W: Write>(stream: &mut W, message: &Message) -> io::Result<()> {
     let raw = encode_message(message).map_err(io::Error::other)?;
 
     stream.write_all(raw.as_bytes())?;
     stream.write_all(b"\n")?;
 
     Ok(())
+}
+
+pub fn send_message(socket_path: &str, message: &Message) -> io::Result<()> {
+    let mut stream = UnixStream::connect(socket_path)?;
+    write_message(&mut stream, message)
 }
 
 pub fn bind_listener(socket_path: &str) -> io::Result<UnixListener> {
@@ -30,7 +34,7 @@ pub fn bind_listener(socket_path: &str) -> io::Result<UnixListener> {
     UnixListener::bind(socket_path)
 }
 
-pub fn read_message(stream: UnixStream) -> io::Result<Message> {
+pub fn read_message<R: Read>(stream: R) -> io::Result<Message> {
     let mut reader = BufReader::new(stream);
     let mut raw = String::new();
 
